@@ -4,3 +4,4 @@ match/games.json
 match/*.log
 web/garuda-chess.html
 baseline/
+ui/node_modules/

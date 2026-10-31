@@ -1,0 +1,27 @@
+/* Tailwind for the React components only: theme + utilities, no preflight (the app has its own base styles). */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+@source "./";
+
+/* Map the shadcn-style tokens the components use onto the app's own palette. */
+@theme inline {
+  --color-foreground: var(--ink, #eef1f5);
+  --color-background: var(--bg, #0d1015);
+  --color-muted-foreground: var(--muted, #8a95a5);
+  --color-card: var(--panel, #161b23);
+  --color-card-foreground: var(--ink, #eef1f5);
+  --color-border: var(--line, #2a323e);
+  --color-ring: var(--accent, #f3a43b);
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
+/* Scoped preflight in the base layer, so Tailwind utilities still win. */
+@layer base {
+:where(#flock, #footer, #hero) :where(*, ::before, ::after) { box-sizing: border-box; border: 0 solid; margin: 0; padding: 0; }
+:where(#flock, #footer, #hero) :where(button) { background: transparent; color: inherit; font: inherit; cursor: pointer; }
+:where(#flock, #footer, #hero) :where(ul, ol) { list-style: none; }
+:where(#flock, #footer, #hero) :where(a) { color: inherit; text-decoration: inherit; }
+:where(#flock, #footer, #hero) :where(img, svg, canvas) { display: block; }
+:where(#flock, #footer, #hero) :where(h1, h2, h3, p) { font-size: inherit; font-weight: inherit; }
+}

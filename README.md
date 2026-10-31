@@ -25,3 +25,10 @@ In UCI mode you can also type:  position startpos moves e2e4  /  go nodes 500000
                      reverse futility, razoring, futility/LMP/SEE pruning, killers, history, qsearch
     src/wasm.rs      WebAssembly interface (no wasm-bindgen)
     src/main.rs      UCI loop, bench, perft and tactics tests
+
+## Website (site/)
+    cd ui && npm install && npm run build   # React components -> site/ui.js + site/ui.css
+    cargo build --release --lib --target wasm32-unknown-unknown
+    python3 build_site.py                    # web/app.html + engine + pieces -> site/index.html
+Vercel serves the `site/` folder. Components in `ui/src/components`: glass reveal intro, ContainerScroll hero,
+clothing-rail bot picker (chessboard jerseys), halftone wordmark footer.
