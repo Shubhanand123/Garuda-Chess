@@ -1,0 +1,233 @@
+<title>Garuda vs Stockfish</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@600;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: broadcast desk. Scoreboard band on top, board + eval graph left, game list and move sheet right. */
+:root{
+  --bg:#eef1f4; --panel:#ffffff; --ink:#18222d; --muted:#5c6b7a; --line:#d5dce3;
+  --sq-light:#e3e8ee; --sq-dark:#6e8499; --accent:#d9831f; --sf:#3a7d5c;
+  --last:rgba(217,131,31,.32); --win:#2f8a5b; --loss:#c2463d; --draw:#7b8794;
+  --wp:#fbfcfd; --wp-edge:#1b2530; --bp:#16202a; --bp-edge:#f1f4f7;
+  --display:"Syne","Avenir Next","Segoe UI",sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f151b; --panel:#17202a; --ink:#e6ecf2; --muted:#93a3b3; --line:#2a3743;
+  --sq-light:#9fb0c1; --sq-dark:#3f5468; --accent:#f0a040; --sf:#5cc08e;
+  --last:rgba(240,160,64,.36); --win:#4cc085; --loss:#e8675d; --draw:#8d99a6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f151b; --panel:#17202a; --ink:#e6ecf2; --muted:#93a3b3; --line:#2a3743;
+  --sq-light:#9fb0c1; --sq-dark:#3f5468; --accent:#f0a040; --sf:#5cc08e;
+  --last:rgba(240,160,64,.36); --win:#4cc085; --loss:#e8675d; --draw:#8d99a6; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:24px 40px}
+.wrap{max-width:1120px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,4.6vw,40px);margin:0;line-height:1.05;text-wrap:balance}
+h1 .g{color:var(--accent)} h1 .s{color:var(--sf)} h1 .v{color:var(--muted);font-weight:600;font-size:.6em;padding:0 .2em}
+.sub{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.live{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:12px;font-weight:500;color:var(--loss);letter-spacing:.06em}
+.live i{width:8px;height:8px;border-radius:50%;background:var(--loss);animation:p 1.2s infinite}
+@keyframes p{50%{opacity:.2}} @media (prefers-reduced-motion:reduce){.live i{animation:none}}
+.scores{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:700px){.scores{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lvl{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.lvl .k{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.lvl .v{font-family:var(--display);font-weight:800;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums}
+.lvl .d{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.pips{display:flex;gap:4px;flex-wrap:wrap}
+.pip{width:18px;height:6px;border-radius:3px;background:var(--line)}
+.pip.w{background:var(--win)} .pip.l{background:var(--loss)} .pip.d{background:var(--draw)}
+.main{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.main{grid-template-columns:minmax(0,1fr)}}
+.col{display:flex;flex-direction:column;gap:12px;min-width:0}
+.player{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-weight:600}
+.player .meta{font-family:var(--mono);font-size:12.5px;color:var(--muted);font-weight:400;font-variant-numeric:tabular-nums;text-align:right}
+.tagG{color:var(--accent)} .tagS{color:var(--sf)}
+.board{width:100%;max-width:100%;aspect-ratio:1;display:grid;grid-template-columns:repeat(8,1fr);border-radius:6px;overflow:hidden;box-shadow:0 12px 30px -18px rgba(10,20,30,.45)}
+.sq{position:relative;display:flex;align-items:center;justify-content:center}
+.sq.l{background:var(--sq-light)} .sq.d{background:var(--sq-dark)}
+.sq.last::before{content:"";position:absolute;inset:0;background:var(--last)}
+.pc{position:relative;font-size:min(8vw,54px);line-height:1;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif}
+@media (max-width:860px){.pc{font-size:10.4vw}}
+.pc.w{color:var(--wp);text-shadow:1px 0 0 var(--wp-edge),-1px 0 0 var(--wp-edge),0 1px 0 var(--wp-edge),0 -1px 0 var(--wp-edge),0 2px 3px rgba(0,0,0,.35)}
+.pc.b{color:var(--bp);text-shadow:0 0 1px var(--bp-edge),0 2px 3px rgba(0,0,0,.3)}
+.coord{position:absolute;font-family:var(--mono);font-size:10px;opacity:.85}
+.coord.f{right:4px;bottom:2px} .coord.r{left:4px;top:2px}
+.sq.l .coord{color:var(--sq-dark)} .sq.d .coord{color:var(--sq-light)}
+.controls{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-size:14px;padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--muted)} button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.plyinfo{font-family:var(--mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.label{font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.graph svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+.legend b{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px}
+.glist{display:flex;flex-direction:column;gap:2px;max-height:330px;overflow-y:auto}
+.gi{display:grid;grid-template-columns:1fr auto;gap:2px 10px;text-align:left;padding:8px 10px;border-radius:7px;border:1px solid transparent;background:transparent}
+.gi:hover{border-color:var(--line)} .gi.cur{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.gi .t{font-weight:500;font-size:14px;min-width:0} .gi .o{font-size:12.5px;color:var(--muted);grid-column:1}
+.gi .r{font-family:var(--mono);font-size:13px;font-weight:500;grid-row:1/3;grid-column:2;align-self:center;text-align:right}
+.res-w{color:var(--win)} .res-l{color:var(--loss)} .res-d{color:var(--draw)} .res-p{color:var(--loss)}
+.sheet{font-family:var(--mono);font-size:13px;display:grid;grid-template-columns:2.6em 1fr 1fr;gap:1px 8px;max-height:280px;overflow-y:auto;font-variant-numeric:tabular-nums}
+.sheet span{padding:1px 4px;border-radius:4px;cursor:pointer} .sheet .n{color:var(--muted);cursor:default}
+.sheet .bk{color:var(--muted)} .sheet .cur{background:var(--accent);color:#fff}
+.sheet small{color:var(--muted);font-size:10.5px;margin-left:4px}
+.reason{font-size:13px;color:var(--muted)}
+.foot{font-size:13px;color:var(--muted);max-width:72ch}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="g">Garuda</span><span class="v">vs</span><span class="s">Stockfish</span></h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div id="liveBadge"></div>
+  </header>
+
+  <div class="scores" id="scores"></div>
+
+  <div class="main">
+    <div class="col">
+      <div class="player" id="topP"></div>
+      <div class="board" id="board" role="img" aria-label="Board position"></div>
+      <div class="player" id="botP"></div>
+      <div class="controls">
+        <button id="bStart" aria-label="First move">⏮</button>
+        <button id="bPrev" aria-label="Previous move">◀</button>
+        <button id="bPlay">Play</button>
+        <button id="bNext" aria-label="Next move">▶</button>
+        <button id="bEnd" aria-label="Last move">⏭</button>
+        <span class="plyinfo" id="plyinfo"></span>
+      </div>
+      <div class="card graph">
+        <div class="label">Evaluation, White's view (pawns)</div>
+        <div id="graph"></div>
+        <div class="legend"><span><b style="background:var(--accent)"></b>Garuda's eval</span><span><b style="background:var(--sf)"></b>Stockfish's eval</span></div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="label">Games</div>
+        <div class="glist" id="glist"></div>
+      </div>
+      <div class="card">
+        <div class="label">Move sheet <span style="text-transform:none;letter-spacing:0;font-weight:400">· small number = search depth</span></div>
+        <div class="reason" id="reason"></div>
+        <div class="sheet" id="sheet"></div>
+      </div>
+    </div>
+  </div>
+  <p class="foot" id="foot"></p>
+</div>
+
+<script>
+const MATCH = __DATA__;
+const GLYPH={k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'}, VS='︎';
+const $=id=>document.getElementById(id);
+const hd=window.claude?.hot?.data||{};
+let gi = hd.gi ?? defaultGame(), ply = hd.ply ?? null, timer=null, follow = hd.follow ?? true;
+window.claude?.hot?.snapshot?.(()=>({gi,ply,follow}));
+
+function defaultGame(){ const i=MATCH.games.findIndex(g=>g.status==='playing'); return i>=0?i:0; }
+function gScore(g){ if(g.status!=='done') return null; const r=g.result; let s=r==='1-0'?1:r==='0-1'?0:.5; return g.white==='Garuda'?s:1-s; }
+function fmtN(n){ if(n==null) return '—'; return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'K':''+n; }
+function sc(s){ if(!s) return null; if('mate' in s) return s.mate>0?10:-10; return Math.max(-10,Math.min(10,s.cp/100)); }
+function scTxt(s){ if(!s) return '—'; if('mate' in s) return (s.mate>0?'+M':'−M')+Math.abs(s.mate); const v=s.cp/100; return (v>=0?'+':'−')+Math.abs(v).toFixed(2); }
+
+function renderHeader(){
+  const live=MATCH.games.some(g=>g.status==='playing');
+  $('liveBadge').innerHTML= live?'<span class="live"><i></i>LIVE · updating as games finish</span>':'<span class="sub">Match complete</span>';
+  $('sub').textContent=`Stockfish ${MATCH.sfVersion} · 1 second per move each · 1 CPU core each · updated ${MATCH.updated}`;
+  const levels=[...new Set(MATCH.games.map(g=>g.level))];
+  $('scores').innerHTML=levels.map(l=>{
+    const gs=MATCH.games.filter(g=>g.level===l); const done=gs.filter(g=>g.status==='done');
+    const pts=done.reduce((a,g)=>a+gScore(g),0);
+    const pips=gs.map(g=>{const s=gScore(g);return `<span class="pip ${s==null?'':s===1?'w':s===0?'l':'d'}"></span>`}).join('');
+    return `<div class="lvl"><span class="k">${l==='Full strength'?'Stockfish · full':'Stockfish · '+l+' Elo'}</span>
+      <span class="v">${pts}<span style="font-size:.55em;color:var(--muted)"> / ${done.length}</span></span>
+      <span class="d">Garuda's points${done.length<gs.length?' · '+(gs.length-done.length)+' to play':''}</span><div class="pips">${pips}</div></div>`;
+  }).join('');
+}
+
+function renderList(){
+  $('glist').innerHTML=MATCH.games.map((g,i)=>{
+    const s=gScore(g); const cls=s==null?'res-p':s===1?'res-w':s===0?'res-l':'res-d';
+    const txt=s==null?'live':s===1?'Garuda won':s===0?'Garuda lost':'draw';
+    const lvl=g.level==='Full strength'?'full strength':g.level+' Elo';
+    return `<button class="gi ${i===gi?'cur':''}" data-i="${i}"><span class="t">${g.white} – ${g.black}</span><span class="o">SF ${lvl} · ${g.opening}</span><span class="r ${cls}">${g.status==='done'?g.result+'<br>':''}${txt}</span></button>`;
+  }).join('');
+  document.querySelectorAll('.gi').forEach(b=>b.onclick=()=>{ gi=+b.dataset.i; ply=null; follow=MATCH.games[gi].status==='playing'; stop(); render(); });
+}
+
+function curPly(){ const g=MATCH.games[gi]; return ply==null||ply>g.plies.length?g.plies.length:ply; }
+
+function renderBoard(){
+  const g=MATCH.games[gi], p=curPly();
+  const fen=p===0?MATCH.startFen:g.plies[p-1].fen;
+  const rows=fen.split(' ')[0].split('/'), pcs={};
+  rows.forEach((row,ri)=>{let f=0;for(const ch of row){ if(/\d/.test(ch)) f+=+ch; else {pcs[String.fromCharCode(97+f)+(8-ri)]=ch;f++;} }});
+  const flip=g.black==='Garuda', last=p>0?g.plies[p-1].uci:null;
+  let h='';
+  for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+    const file=flip?7-c:c, rank=flip?r:7-r, n=String.fromCharCode(97+file)+(rank+1), pc=pcs[n];
+    h+=`<div class="sq ${(file+rank)%2?'l':'d'} ${last&&(last.slice(0,2)===n||last.slice(2,4)===n)?'last':''}">`+
+      (pc?`<span class="pc ${pc===pc.toUpperCase()?'w':'b'}">${GLYPH[pc.toLowerCase()]+VS}</span>`:'')+
+      (c===0?`<span class="coord r">${rank+1}</span>`:'')+(r===7?`<span class="coord f">${String.fromCharCode(97+file)}</span>`:'')+`</div>`;
+  }
+  $('board').innerHTML=h;
+  // players: latest search stats for each side up to this ply
+  const lastBy=name=>{ for(let i=p-1;i>=0;i--) if(g.plies[i].by===name) return g.plies[i]; return null; };
+  const line=(name)=>{ const x=lastBy(name), cls=name==='Garuda'?'tagG':'tagS';
+    const label=name==='Stockfish'?`Stockfish${g.elo?' ('+g.elo+')':''}`:'Garuda';
+    return `<span class="${cls}">${label}</span><span class="meta">${x?`depth ${x.depth} · ${fmtN(x.nodes)} nodes · eval ${scTxt(x.score)}`:'book moves'}</span>`; };
+  const top=flip?'White':'Black';
+  $('topP').innerHTML=line(g[top.toLowerCase()]); $('botP').innerHTML=line(g[(flip?'black':'white')]);
+  $('plyinfo').textContent=`move ${Math.ceil(p/2)} · ply ${p}/${g.plies.length}`;
+}
+
+function renderGraph(){
+  const g=MATCH.games[gi], W=600,H=170,pad=28, n=Math.max(g.plies.length,20);
+  const x=i=>pad+(i/n)*(W-pad-8), y=v=>H/2-(v/10)*(H/2-12);
+  const series=name=>g.plies.map((p,i)=>p.by===name&&p.score?[x(i+1),y(sc(p.score))]:null).filter(Boolean);
+  const path=pts=>pts.length?'M'+pts.map(q=>q[0].toFixed(1)+' '+q[1].toFixed(1)).join(' L'):'';
+  const ticks=[10,5,0,-5,-10].map(v=>`<line x1="${pad}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="${v===0?1.5:1}"/><text x="${pad-6}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--muted)" font-family="IBM Plex Mono,monospace">${v>0?'+'+v:v}</text>`).join('');
+  const cur=curPly();
+  $('graph').innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Evaluation graph">${ticks}
+    <line x1="${x(cur)}" x2="${x(cur)}" y1="6" y2="${H-6}" stroke="var(--muted)" stroke-dasharray="3 3"/>
+    <path d="${path(series('Stockfish'))}" fill="none" stroke="var(--sf)" stroke-width="2.2"/>
+    <path d="${path(series('Garuda'))}" fill="none" stroke="var(--accent)" stroke-width="2.2"/></svg>`;
+}
+
+function renderSheet(){
+  const g=MATCH.games[gi], p=curPly();
+  let h='';
+  for(let i=0;i<g.plies.length;i+=2){
+    const cell=k=>{ const m=g.plies[k]; if(!m) return '<span></span>';
+      return `<span data-k="${k+1}" class="${m.book?'bk':''} ${k+1===p?'cur':''}">${m.san}${m.depth?`<small>${m.depth}</small>`:''}</span>`; };
+    h+=`<span class="n">${i/2+1}.</span>${cell(i)}${cell(i+1)}`;
+  }
+  const el=$('sheet'); el.innerHTML=h;
+  el.querySelectorAll('[data-k]').forEach(s=>s.onclick=()=>{ ply=+s.dataset.k; follow=false; stop(); render(); });
+  const c=el.querySelector('.cur'); if(c) c.scrollIntoView({block:'nearest'});
+  $('reason').textContent= g.status==='done' ? `Result ${g.result} · ${g.reason}` : 'In progress. The page refreshes with new moves as the match continues.';
+}
+
+function render(){ renderHeader(); renderList(); renderBoard(); renderGraph(); renderSheet();
+  $('bPlay').textContent=timer?'Pause':'Play'; $('bPlay').classList.toggle('on',!!timer); }
+function go(k){ const g=MATCH.games[gi]; ply=Math.max(0,Math.min(g.plies.length,k)); follow=(ply===g.plies.length&&g.status==='playing'); render(); }
+function stop(){ if(timer){clearInterval(timer);timer=null;} }
+$('bStart').onclick=()=>{stop();go(0)}; $('bEnd').onclick=()=>{stop();go(1e9)};
+$('bPrev').onclick=()=>{stop();go(curPly()-1)}; $('bNext').onclick=()=>{stop();go(curPly()+1)};
+$('bPlay').onclick=()=>{ if(timer){stop();render();return;} if(curPly()>=MATCH.games[gi].plies.length) ply=0;
+  timer=setInterval(()=>{ if(curPly()>=MATCH.games[gi].plies.length){stop();render();return;} go(curPly()+1); },700); render(); };
+document.addEventListener('keydown',e=>{ if(e.key==='ArrowLeft'){stop();go(curPly()-1)} if(e.key==='ArrowRight'){stop();go(curPly()+1)} });
+if(follow) ply=null;
+$('foot').textContent='How to read it: each engine gets one second per move on one CPU core. Stockfish at a set Elo uses its built-in strength limiter. Full-strength games are adjudicated once Stockfish scores the position beyond 10 pawns for three moves; long dead-equal positions are adjudicated as draws.';
+render();
+</script>

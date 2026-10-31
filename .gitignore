@@ -1,0 +1,6 @@
+target/
+*.nnue
+match/games.json
+match/*.log
+web/garuda-chess.html
+baseline/
