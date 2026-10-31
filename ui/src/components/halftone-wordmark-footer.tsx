@@ -14,10 +14,10 @@ interface HalftoneWordmarkFooterProps {
 }
 
 /* Dot colours: resting dots are cool, displaced dots heat up toward pink and orange. */
-const REST: [number, number, number] = [113, 129, 181]; // Garuda board indigo
-const REST_LIGHT: [number, number, number] = [80, 92, 150]; // deeper indigo for light mode
-const MID: [number, number, number] = [226, 96, 58]; // Garuda vermilion
-const HOT: [number, number, number] = [243, 164, 59]; // Garuda saffron
+const REST: [number, number, number] = [124, 98, 196]; // royal violet
+const REST_LIGHT: [number, number, number] = [96, 70, 170]; // deeper violet for light mode
+const MID: [number, number, number] = [203, 120, 230]; // orchid
+const HOT: [number, number, number] = [242, 193, 78]; // gold
 
 const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
 

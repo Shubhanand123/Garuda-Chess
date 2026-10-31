@@ -10,7 +10,7 @@ head = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="description" content="Play Garuda, a Rust chess engine running in your browser via WebAssembly.">\n'
         '<meta name="theme-color" content="#0d1015">\n'
         '<style>[hidden]{display:none!important}img{max-width:100%}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>\n'
-        '<link rel="stylesheet" href="ui.css">\n<script src="ui.js" defer></script>\n')
+        '<link rel="stylesheet" href="ui.css">\n<script src="ui.js" defer></script>\n<script src="hero3d.js" defer></script>\n')
 i = t.index('</style>') + len('</style>')
 (root / 'site/index.html').write_text(head + t[:i] + '\n</head>\n<body>\n' + t[i:] + '\n</body>\n</html>\n')
 print('site/index.html', (root / 'site/index.html').stat().st_size, 'bytes')
