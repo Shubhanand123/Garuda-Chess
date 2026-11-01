@@ -246,6 +246,26 @@ textarea{width:100%;min-height:120px;border:1px solid var(--line);border-radius:
 .foot{font-size:12px;color:var(--faint);text-align:center}
 
 
+/* live engine stats in the play panel */
+.stc{display:flex;flex-direction:column;gap:10px}
+.stc .lbl{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;font-weight:700}
+.stc .lbl em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:500;color:var(--faint)}
+.wexp{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-variant-numeric:tabular-nums}
+.wexp b{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.wexp .you b{color:var(--good)} .wexp .opp{text-align:right} .wexp .opp b{color:var(--ink)}
+.wexp span{display:block;font-size:12px;color:var(--muted);margin-top:3px}
+.wexp .dr{align-self:center;font-size:12px;color:var(--faint);text-align:center}
+.wbar{height:10px;border-radius:6px;overflow:hidden;display:flex;background:var(--panel3)}
+.wbar i{display:block;height:100%;background:linear-gradient(90deg,#2e8a57,#5fc28a);transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.wbar u{display:block;height:100%;flex:1;background:linear-gradient(90deg,var(--panel3),color-mix(in srgb,var(--ink) 22%,var(--panel3)))}
+.mgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.mgrid div{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 9px;min-width:0}
+.mgrid b{display:block;font-size:15.5px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mgrid span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;font-weight:700}
+.spark{position:relative} .spark svg{display:block;width:100%;height:46px}
+.spark .ax{position:absolute;right:0;top:0;font-size:10px;color:var(--faint)} .spark .ax2{top:auto;bottom:0}
+.stc .pvl{font-family:var(--mono);font-size:12.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stc .pvl b{color:var(--ink)}
 /* queen spiral hero (sticky stage, scroll-driven three.js scene) */
 body{overflow-x:clip}
 .qhero{position:relative;height:340vh;width:100vw;margin-left:calc(50% - 50vw);margin-top:-14px}
@@ -270,9 +290,9 @@ body{overflow-x:clip}
 .qphase p{margin:0;color:var(--muted);font-size:clamp(15px,1.35vw,18px);line-height:1.6;text-shadow:0 1px 18px var(--bg)}
 .qcta{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap} .qphase.r .qcta{justify-content:flex-end} .qphase.c .qcta{justify-content:center}
 .qcta .btn{padding:13px 22px;font-size:15px;border-radius:14px}
-.qcta .ghost{background:color-mix(in srgb,var(--panel) 60%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.qcta .ghost{background:color-mix(in srgb,var(--panel) 82%,transparent)}
 .qchips{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px} .qphase.r .qchips{justify-content:flex-end}
-.qchips span{border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--panel) 55%,transparent);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
+.qchips span{border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));background:color-mix(in srgb,var(--panel) 85%,transparent);border-radius:999px;padding:6px 12px;font-size:13px;font-weight:600}
 .qprog{position:absolute;z-index:2;right:max(18px,2.2vw);top:50%;height:150px;width:3px;transform:translateY(-50%);border-radius:3px;background:color-mix(in srgb,var(--ink) 14%,transparent)}
 .qprog i{position:absolute;left:0;top:0;width:100%;height:0;border-radius:3px;background:linear-gradient(#fbe39a,#d48f2c);box-shadow:0 0 12px #e6a93a}
 .qprog b{position:absolute;left:50%;width:9px;height:9px;margin-left:-4.5px;border-radius:50%;background:var(--bg);border:2px solid color-mix(in srgb,var(--ink) 30%,transparent);transform:translateY(-50%);transition:border-color .3s,background .3s}
@@ -705,6 +725,38 @@ function renderEvalBar(){
   const wb=(cp??0)>=0, el=(wb!==fl)?$('evalBot'):$('evalTop'); el.textContent=txt; el.style.color=wb?'#33373e':'#f2f2ee';
 }
 
+// ================= live engine stats (depth, nodes, win expectation) =================
+const fmtN=n=>n==null?'–':n>=1e6?(n/1e6).toFixed(n>=1e7?0:1)+'M':n>=1e3?Math.round(n/1e3)+'k':String(n);
+function noteSearch(r,n,who){ // r: engine reply for the position after n plies; who: 'bot' or 'live'
+  const st=stateAt(n), cp=scoreToCp(r.score), cpW=st.turn==='w'?cp:-cp;
+  S.stats={n,who,depth:r.depth,seldepth:r.seldepth,nodes:r.nodes,time:r.time,cpW,pvsan:r.pvsan||''};
+  if(who==='live'||LEVELS[S.game.level].nodes){ S.evalW=cpW; (S.winHist||(S.winHist=[]))[n]=winPct(S.game.human==='w'?cpW:-cpW); }
+}
+function liveEval(){ const g=S.game; if(S.mode!=='play'||!g||g.result) return; const n=S.hist.length, st=latest();
+  if(st.turn!==g.human||st.status!=='playing') return; const my=gen;
+  // short search on the player's turn: gives the eval bar, depth and win expectation
+  engine(positionCmd(n),'go nodes 300000 movetime 450',r=>{ if(my!==gen||S.mode!=='play'||S.hist.length!==n) return; noteSearch(r,n,'live'); renderEvalBar(); renderStats(); }); }
+function statsHtml(){ const g=S.game; if(!g) return ''; const lv=LEVELS[g.level], X=S.stats, sg=g.human==='w'?1:-1;
+  let you;
+  if(g.result){ const won=(g.result==='1-0'&&g.human==='w')||(g.result==='0-1'&&g.human==='b'); you=g.result==='1/2-1/2'?50:won?100:0; }
+  else you=S.evalW==null?50:winPct(S.evalW*sg);
+  const eval_=g.result?resultCode():(S.evalW==null?'0.00':cpText(S.evalW));
+  const depth=X?(X.seldepth&&X.seldepth>X.depth?`${X.depth}<small style="color:var(--faint);font-weight:600">/${X.seldepth}</small>`:String(X.depth??'–')):'–';
+  const nps=X&&X.time>5?fmtN(Math.round(X.nodes/X.time*1000))+'/s':'–';
+  const H=(S.winHist||[]).slice(0,S.hist.length+1), pts=[]; H.forEach((v,i)=>{ if(v!=null) pts.push([i,v]); });
+  let spark='';
+  if(pts.length>1){ const N=Math.max(S.hist.length,10), x=i=>(i/N*100).toFixed(2), y=v=>(46-v/100*42-2).toFixed(2);
+    const line=pts.map(([i,v],k)=>(k?'L':'M')+x(i)+','+y(v)).join(' ');
+    spark=`<div class="spark"><svg viewBox="0 0 100 46" preserveAspectRatio="none" aria-label="Your winning chances over the game"><line x1="0" x2="100" y1="23" y2="23" stroke="var(--line)" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"/><path d="${line} L${x(pts[pts.length-1][0])},46 L${x(pts[0][0])},46 Z" fill="color-mix(in srgb,var(--good) 18%,transparent)"/><path d="${line}" fill="none" stroke="var(--good)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/></svg><span class="ax">100%</span><span class="ax ax2">0%</span></div>`; }
+  const pv=X&&X.pvsan?X.pvsan.split(' ').slice(0,8).map((m,k)=>k?m:`<b>${m}</b>`).join(' '):'';
+  const src=!X?'Starts after the first move':X.who==='live'?`Garuda · after ${S.hist[X.n-1]?.san||'start'}`:`${lv.name}'s own search`;
+  return `<div class="stc"><div class="lbl">Win expectation<em>${src}</em></div>
+    <div class="wexp"><div class="you"><b>${Math.round(you)}%</b><span>You</span></div><div class="opp"><b>${Math.round(100-you)}%</b><span>${lv.name}</span></div></div>
+    <div class="wbar" role="img" aria-label="You ${Math.round(you)} percent, ${lv.name} ${Math.round(100-you)} percent"><i style="width:${you}%"></i><u></u></div>
+    <div class="mgrid"><div><span>Eval</span><b>${eval_}</b></div><div><span>Depth</span><b>${depth}</b></div><div><span>Nodes</span><b>${fmtN(X?.nodes)}</b></div><div><span>Speed</span><b>${nps}</b></div></div>
+    ${spark}${pv?`<div class="pvl" title="Garuda's expected line">${pv}</div>`:''}</div>`; }
+function renderStats(){ const el=$('statsCard'); if(el) el.innerHTML=statsHtml(); }
+
 // ================= player strips =================
 function strip(color){
   const st=cur(), mat=material(st.fen), base=material(S.startFen), opp=color==='w'?'b':'w';
@@ -740,7 +792,7 @@ function startGame(fromFen){
   gen++; cancelEngine(); const su=S.setup, tc=TCS[su.tc];
   let human=su.color==='r'?(Math.random()<.5?'w':'b'):su.color;
   if(fromFen){ human=fromFen.split(' ')[1]; }
-  S.mode='play'; S.startFen=fromFen||START; S.hist=[]; S.view=0; histChanged(); S.review=null; S.evalW=0; S.settings.flip=false; lowWarned=false;
+  S.mode='play'; S.startFen=fromFen||START; S.hist=[]; S.view=0; histChanged(); S.review=null; S.evalW=0; S.stats=null; S.winHist=[50]; S.settings.flip=false; lowWarned=false;
   S.game={level:su.level,human,tc:{b:tc.b,i:tc.i},clocks:{w:tc.b,b:tc.b},result:null,reason:'',hints:0,turnStart:null,needNew:true};
   sel=null; premove=null; arrows=[]; clearUser(); showEnd=false; importOpen=false;
   tone(523,.09,'sine',.06); tone(784,.12,'sine',.06,.08); renderAll(); save(); maybeBot();
@@ -764,7 +816,7 @@ function commitMove(uci,by,info){
     const R={checkmate:[mover==='w'?'1-0':'0-1',`${mover===g.human?'You':LEVELS[g.level].name} won by checkmate.`],stalemate:['1/2-1/2','Draw by stalemate.'],repetition:['1/2-1/2','Draw by threefold repetition.'],fifty:['1/2-1/2','Draw by the 50-move rule.'],insufficient:['1/2-1/2','Draw: insufficient material.']}[after.status];
     renderAll({captured}); endGame(R[0],R[1]); return true; }
   renderAll({captured}); save();
-  if(S.mode==='play') maybeBot();
+  if(S.mode==='play'){ maybeBot(); liveEval(); }
   if(S.mode==='analysis') analyse();
   return true;
 }
@@ -780,7 +832,7 @@ function maybeBot(){
   const t0=performance.now(), nw=g.needNew; g.needNew=false;
   engine(positionCmd(S.hist.length),cmd,r=>{
     let wait=Math.max(0,lv.minMs+Math.random()*400-(performance.now()-t0)); if(g.tc&&g.tc.b) wait=Math.min(wait,Math.max(0,clockLeft(latest().turn)*50));
-    setTimeout(()=>{ if(my!==gen||S.mode!=='play') return; botThinking=false; commitMove(r.best,'bot',{score:scoreToCp(r.score)});
+    setTimeout(()=>{ if(my!==gen||S.mode!=='play') return; botThinking=false; noteSearch(r,S.hist.length,'bot'); commitMove(r.best,'bot',LEVELS[S.game.level].nodes?{score:scoreToCp(r.score)}:null);
       if(premove&&!S.game.result){ const pm=premove; premove=null; const opts=latest().legal.map(x=>x[0]).filter(u=>u.startsWith(pm.from+pm.to)); if(opts.length) setTimeout(()=>commitMove(opts.find(u=>u.endsWith('q'))||opts[0],'human'),60); else renderBoard(); }
     },wait);
   },nw);
@@ -892,6 +944,7 @@ function renderPanel(){
     else if(botThinking) status=`<span class="dot" style="background:var(--accent)"></span><b>${lv.name} is thinking</b>`;
     else if(lt.turn===g.human) status=`<span class="dot" style="background:var(--good)"></span><b>Your move</b>${lt.check?'<span class="empty">· you are in check</span>':''}${premove?'<span class="empty">· premove set</span>':''}`;
     h=`<div class="ph"><div class="avatar" style="width:34px;height:34px;border-radius:9px">${emblem(lv.hue,'ph',BOT_PIECE[lv.id])}</div><h2>vs ${lv.name}</h2><span class="sub">${tcLabel(g.tc)}</span></div>
+    <div class="sec" id="statsCard">${statsHtml()}</div>
     <div class="sec"><div class="opening">${op?I.book+'<b>'+op+'</b>':'<span>&nbsp;</span>'}</div>${movesHtml()}<div class="status">${status}</div></div>
     <div class="sec">${g.result?`<button class="btn primary big" id="revBtn">${I.star} Game review</button><div class="row3"><button class="btn" id="rmBtn">Rematch</button><button class="btn" id="newBtn">New game</button><button class="btn" id="anBtn">Analyse</button></div>`:''}
       <div class="row2"><button class="btn" id="pgnBtn">Copy PGN</button><button class="btn" id="fenBtn">Copy FEN</button></div></div>`;
@@ -910,7 +963,7 @@ function renderPanel(){
     const pill=A&&A.cpW!=null?`<span class="evpill ${A.cpW>=0?'w':'b'}">${cpText(A.cpW)}</span>`:'<span class="evpill b">…</span>';
     const pv=A&&A.pvsan?A.pvsan.split(' ').slice(0,12).map((m,k)=>k===0?`<b>${m}</b>`:m).join(' '):'';
     h=`<div class="ph"><h2>Analysis</h2><span class="sub">${st.turn==='w'?'White':'Black'} to move</span></div>
-    <div class="sec"><div class="engcard"><div class="engline">${pill}<span class="meta">${A&&A.depth?`Garuda · depth ${A.depth} · ${(A.nodes/1e6).toFixed(1)}M nodes`:(A&&A.busy?'Garuda is searching…':(st.status!=='playing'?st.status:''))}</span></div><div class="pv">${pv}</div></div>
+    <div class="sec"><div class="engcard"><div class="engline">${pill}<span class="meta">${A&&A.depth?`Garuda · depth ${A.depth} · ${(A.nodes/1e6).toFixed(1)}M nodes · White wins ${Math.round(winPct(A.cpW))}%`:(A&&A.busy?'Garuda is searching…':(st.status!=='playing'?st.status:''))}</span></div><div class="pv">${pv}</div></div>
       <button class="btn wide" id="vsBtn">${I.play} Play vs ${LEVELS[S.setup.level].name} from here</button></div>
     <div class="sec"><div class="opening">${op?I.book+'<b>'+op+'</b>':'<span>&nbsp;</span>'}</div>${movesHtml()}<div class="empty">Move pieces for either side. Right-click drag draws arrows. Playing from an earlier position replaces the moves after it.</div></div>
     <div class="sec"><div class="row3"><button class="btn" id="pgnBtn">Copy PGN</button><button class="btn" id="fenBtn">Copy FEN</button><button class="btn" id="clrBtn">Reset</button></div></div>`;

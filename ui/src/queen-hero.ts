@@ -57,14 +57,19 @@ function glowTexture() {
   return t;
 }
 
+const DPR0 = window.devicePixelRatio || 1;
+const MOBILE = matchMedia("(pointer: coarse)").matches || Math.min(screen.width, screen.height) < 700;
+
 export function mountQueenHero(canvas: HTMLCanvasElement, getProgress: () => number, opts: Opts = {}) {
   let renderer: THREE.WebGLRenderer;
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+    // MSAA is wasted on high-DPR screens; skip it there
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: DPR0 < 1.5, alpha: true, powerPreference: "high-performance" });
   } catch {
     return null;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  let dpr = Math.min(DPR0, MOBILE ? 1.25 : 1.5);
+  renderer.setPixelRatio(dpr);
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -81,44 +86,42 @@ export function mountQueenHero(canvas: HTMLCanvasElement, getProgress: () => num
   const key = new THREE.DirectionalLight(0xffffff, 1.1);
   key.position.set(4, 8, 6);
   scene.add(key);
-  const rimL = new THREE.SpotLight(0xdfe8ff, 260, 30, 0.5, 0.6, 2);
+  const rimL = new THREE.DirectionalLight(0xdfe8ff, 4.2);
   rimL.position.set(-5, 5, -5);
   scene.add(rimL);
-  const rimR = new THREE.SpotLight(0xffffff, 220, 30, 0.5, 0.6, 2);
+  const rimR = new THREE.DirectionalLight(0xffffff, 3.4);
   rimR.position.set(5, 3.5, -4.5);
   scene.add(rimR);
-  const top = new THREE.SpotLight(0xffffff, 120, 20, 0.35, 0.8, 2);
-  top.position.set(0, 9, 1);
-  scene.add(top);
 
   const lacquer = new THREE.MeshPhysicalMaterial({ color: 0x060608, metalness: 0.05, roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.04, reflectivity: 0.6 });
-  const satin = new THREE.MeshPhysicalMaterial({ color: 0x111116, metalness: 0.2, roughness: 0.42, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+  const satin = new THREE.MeshStandardMaterial({ color: 0x111116, metalness: 0.2, roughness: 0.38 });
+  const small = new THREE.MeshStandardMaterial({ color: 0x08080a, metalness: 0.15, roughness: 0.14 });
 
   const queen = new THREE.Group();
-  queen.add(new THREE.Mesh(lathe(BODY), lacquer));
-  queen.add(new THREE.Mesh(lathe(DOME, 96), satin));
+  queen.add(new THREE.Mesh(lathe(BODY, 96), lacquer));
+  queen.add(new THREE.Mesh(lathe(DOME, 48), satin));
 
   // coronet: ten points around the rim, each with a small ball
-  const spike = new THREE.ConeGeometry(0.075, 0.26, 32);
-  const ball = new THREE.SphereGeometry(0.068, 32, 20);
+  const spike = new THREE.ConeGeometry(0.075, 0.26, 14);
+  const ball = new THREE.SphereGeometry(0.068, 14, 10);
   const SP = 10;
   for (let i = 0; i < SP; i++) {
     const a = (i / SP) * Math.PI * 2;
     const x = Math.cos(a) * 0.7, z = Math.sin(a) * 0.7;
-    const s = new THREE.Mesh(spike, lacquer);
+    const s = new THREE.Mesh(spike, small);
     s.position.set(x, 3.15, z);
     s.lookAt(x * 1.25, 3.6, z * 1.25);
     s.rotateX(Math.PI / 2);
     queen.add(s);
-    const p = new THREE.Mesh(ball, lacquer);
+    const p = new THREE.Mesh(ball, small);
     p.position.set(x * 1.07, 3.29, z * 1.07);
     queen.add(p);
   }
   // finial orb
-  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 48, 32), lacquer);
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.13, 24, 16), small);
   orb.position.y = 3.56;
   queen.add(orb);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.05, 24, 16), lacquer);
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), small);
   tip.position.y = 3.72;
   queen.add(tip);
   scene.add(queen);
@@ -169,13 +172,27 @@ export function mountQueenHero(canvas: HTMLCanvasElement, getProgress: () => num
   ro.observe(canvas);
   resize();
 
-  let visible = true, raf = 0;
+  let visible = true, raf = 0, lastP = -1, lastDraw = 0, slow = 0, frames = 0;
   const io = new IntersectionObserver((e) => { visible = e[0].isIntersecting; if (visible && !raf) loop(0); }, { rootMargin: "100px" });
   io.observe(canvas);
   function loop(time: number) {
     raf = 0;
     if (!visible || document.hidden) return;
-    frame(time || performance.now());
+    const now = time || performance.now();
+    const p = getProgress();
+    const moving = Math.abs(p - lastP) > 1e-4;
+    // idle drift only needs ~30 fps; scrolling gets every frame
+    if (moving || now - lastDraw > 32) {
+      const dt = now - lastDraw;
+      lastDraw = now; lastP = p;
+      frame(now);
+      // if frames keep coming in slow, drop the resolution once
+      if (dt < 200) { frames++; if (dt > 40) slow++; }
+      if (frames >= 40) {
+        if (slow > 24 && dpr > 1) { dpr = 1; renderer.setPixelRatio(1); resize(); }
+        frames = 0; slow = 0;
+      }
+    }
     if (!opts.reduced) raf = requestAnimationFrame(loop);
   }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && visible && !raf) loop(0); });
